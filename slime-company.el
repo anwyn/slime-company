@@ -1,10 +1,11 @@
 ;;; slime-company.el --- slime completion backend for company mode
 ;;
-;; Copyright (C) 2009-2013  Ole Arndt
+;; Copyright (C) 2009-2014  Ole Arndt
 ;;
-;; Author: Ole Arndt <ole@sugarshark.com>
+;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 0.5
+;; Version: 0.6
+;; Package-Requires: ((slime "2.3.2") (company "0.7"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -23,8 +24,7 @@
 ;;
 ;; This is a backend implementation for the completion package
 ;; company-mode by Nikolaj Schumacher. More info about this package
-;; is available at http://nschum.de/src/emacs/company-mode
-;; Company-mode is also available at the ELPA http://tromey.com/elpa
+;; is available at http://company-mode.github.io/
 ;;
 ;;; Installation:
 ;;
@@ -39,11 +39,8 @@
 ;;   (define-key company-active-map (kbd "\C-n") 'company-select-next)
 ;;   (define-key company-active-map (kbd "\C-p") 'company-select-previous)
 ;;   (define-key company-active-map (kbd "\C-d") 'company-show-doc-buffer)
-;;   (define-key company-active-map (kbd "\C-v") 'company-show-location)
 ;;   (define-key company-active-map (kbd "<tab>") 'company-complete)
-;;   (define-key company-active-map (kbd "\C-g") '(lambda ()
-;;                                                  (interactive)
-;;                                                  (company-abort)))
+;;
 ;;; Code:
 
 (require 'company)
