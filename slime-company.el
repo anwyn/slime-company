@@ -39,7 +39,7 @@
 ;;   (define-key company-active-map (kbd "\C-n") 'company-select-next)
 ;;   (define-key company-active-map (kbd "\C-p") 'company-select-previous)
 ;;   (define-key company-active-map (kbd "\C-d") 'company-show-doc-buffer)
-;;   (define-key company-active-map (kbd "<tab>") 'company-complete)
+;;   (define-key company-active-map (kbd "M-.") 'company-show-location)
 ;;
 ;;; Code:
 
@@ -75,6 +75,18 @@
   (when (slime-company-active-p)
     (slime-echo-arglist)))
 
+(defun slime-company-fetch-candidates-async (prefix)
+  (let ((slime-current-thread t))
+    (lexical-let ((package (slime-current-package))
+                  (prefix prefix))
+      (cons :async (lambda (callback)
+                     (lexical-let ((callback callback))
+                       (slime-eval-async
+                           `(swank:simple-completions ,prefix ',package)
+                         (lambda (result)
+                           (funcall callback (first result)))
+                         package)))))))
+
 (defun slime-company-backend (command &optional arg &rest ignored)
   "Company mode backend for slime."
   (case command
@@ -82,7 +94,7 @@
      (if (slime-company-active-p)
          (company-grab-symbol)))
     ('candidates
-     (first (slime-simple-completions (substring-no-properties arg))))
+     (slime-company-fetch-candidates-async (substring-no-properties arg)))
     ('meta
      (let ((arglist (slime-eval `(swank:operator-arglist ,arg ,(slime-current-package)))))
        (if arglist
