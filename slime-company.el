@@ -4,7 +4,7 @@
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 0.6
+;; Version: 0.7
 ;; Package-Requires: ((slime "2.3.2") (company "0.7"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -66,12 +66,10 @@
 (defun slime-company-maybe-enable ()
   (when (slime-company-active-p)
     (company-mode 1)
-    (add-hook 'company-completion-finished-hook 'slime-company-echo-arglist)
     (add-to-list 'company-backends 'slime-company-backend)))
 
 (defun slime-company-disable ()
-  (setq company-backends (remove 'slime-company-backend company-backends))
-  (remove-hook 'company-completion-finished-hook 'slime-company-echo-arglist))
+  (setq company-backends (remove 'slime-company-backend company-backends)))
 
 (defun slime-company-echo-arglist (_)
   (when (slime-company-active-p)
@@ -106,6 +104,10 @@
            (when (buffer-live-p buffer)
              (cons buffer (with-current-buffer buffer
                             (point))))))))
+    ('post-completion
+     (slime-echo-arglist)
+     (just-one-space)
+     arg)
     ('sorted nil)))
 
 (provide 'slime-company)
