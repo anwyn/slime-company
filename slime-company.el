@@ -59,6 +59,34 @@
      (remove-hook h 'slime-company-maybe-enable))
    (slime-company-disable)))
 
+(defgroup slime-company nil
+  "Interaction between slime and the company completion mode."
+  :group 'company
+  :group 'slime)
+
+(defcustom slime-company-after-completion nil
+  "What to do after a successful completion.
+In addition to displaying the arglist slime-company will also do one of:
+
+- `nil':  nothing,
+- insert a space. Works best if you also call `delete-horizontal-space'
+  before closing parentheses to remove excess whitespace.
+- call an arbitrary function with the completion string as the first parameter.
+"
+  :group 'slime-company
+  :type '(choice
+          (const :tag "Do nothing" nil)
+          (const :tag "Insert space" slime-company-just-one-space)
+          (function :tag "Call custom function" nil)))
+
+(defcustom slime-company-complete-in-comments-and-strings nil
+  "Should slime-company also complete in comments and strings."
+  :group 'slime-company
+  :type 'boolean)
+
+(defun slime-company-just-one-space (arg)
+  (just-one-space))
+
 (defsubst slime-company-active-p ()
   "Test if the slime-company backend should be active in the current buffer."
   (derived-mode-p 'lisp-mode 'clojure-mode 'slime-repl-mode))
@@ -91,7 +119,8 @@
     ('prefix
      (when (and (slime-company-active-p)
                 (slime-connected-p)
-                (null (company-in-string-or-comment)))
+                (or slime-company-complete-in-comments-and-strings
+                    (null (company-in-string-or-comment))))
        (company-grab-symbol)))
     ('candidates
      (when (slime-connected-p)
@@ -119,8 +148,8 @@
                             (point))))))))
     ('post-completion
      (slime-echo-arglist)
-     (just-one-space)
-     arg)
+     (when slime-company-after-completion
+       (funcall slime-company-after-completion arg)))
     ('sorted nil)))
 
 (provide 'slime-company)
