@@ -4,7 +4,7 @@
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 0.7
+;; Version: 0.8
 ;; Package-Requires: ((slime "2.3.2") (company "0.7"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -66,14 +66,10 @@
 (defun slime-company-maybe-enable ()
   (when (slime-company-active-p)
     (company-mode 1)
-    (add-to-list 'company-backends 'slime-company-backend)))
+    (add-to-list 'company-backends 'company-slime)))
 
 (defun slime-company-disable ()
-  (setq company-backends (remove 'slime-company-backend company-backends)))
-
-(defun slime-company-echo-arglist (_)
-  (when (slime-company-active-p)
-    (slime-echo-arglist)))
+  (setq company-backends (remove 'company-slime company-backends)))
 
 (defun slime-company-fetch-candidates-async (prefix)
   (let ((slime-current-thread t))
@@ -87,14 +83,19 @@
                            (funcall callback (first result)))
                          package)))))))
 
-(defun slime-company-backend (command &optional arg &rest ignored)
+(defun company-slime (command &optional arg &rest ignored)
   "Company mode backend for slime."
   (case command
+    ('init
+     (slime-company-active-p))
     ('prefix
-     (if (slime-company-active-p)
-         (company-grab-symbol)))
+     (when (and (slime-company-active-p)
+                (slime-connected-p)
+                (null (company-in-string-or-comment)))
+       (company-grab-symbol)))
     ('candidates
-     (slime-company-fetch-candidates-async (substring-no-properties arg)))
+     (when (slime-connected-p)
+       (slime-company-fetch-candidates-async (substring-no-properties arg))))
     ('meta
      (let ((arglist (slime-eval `(swank:operator-arglist ,arg ,(slime-current-package)))))
        (if arglist
