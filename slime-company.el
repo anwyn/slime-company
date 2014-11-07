@@ -128,7 +128,7 @@ In addition to displaying the arglist slime-company will also do one of:
     ('meta
      (let ((arglist (slime-eval `(swank:operator-arglist ,arg ,(slime-current-package)))))
        (if arglist
-           (slime-fontify-string arglist)
+           (slime-autodoc--fontify arglist)
          :not-available)))
     ('doc-buffer
      (let ((doc (slime-eval `(swank:describe-symbol ,arg))))
