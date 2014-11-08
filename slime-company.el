@@ -111,6 +111,15 @@ In addition to displaying the arglist slime-company will also do one of:
                            (funcall callback (first result)))
                          package)))))))
 
+
+(defun slime-company-fontify (arglist)
+  "Wrapper-function for slime's fontify-function, since this is not consistent acrosss versions."
+  ;; ensure we support versions of slime prior to and after the autodoc-changes
+  ;; https://github.com/slime/slime/commit/930f364853e518419978082c9a8455071e537b59
+  (if (fboundp 'slime-autodoc--fontify)
+      (slime-autodoc--fontify arglist)
+    (slime-fontify-string arglist)))
+
 (defun company-slime (command &optional arg &rest ignored)
   "Company mode backend for slime."
   (case command
@@ -128,7 +137,7 @@ In addition to displaying the arglist slime-company will also do one of:
     ('meta
      (let ((arglist (slime-eval `(swank:operator-arglist ,arg ,(slime-current-package)))))
        (if arglist
-           (slime-autodoc--fontify arglist)
+           (slime-company-fontify arglist)
          :not-available)))
     ('doc-buffer
      (let ((doc (slime-eval `(swank:describe-symbol ,arg))))
