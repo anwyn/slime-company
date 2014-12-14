@@ -43,6 +43,8 @@
 ;;
 ;;; Code:
 
+(eval-when-compile (require 'cl))
+(require 'slime)
 (require 'company)
 
 (define-slime-contrib slime-company
@@ -108,7 +110,7 @@ In addition to displaying the arglist slime-company will also do one of:
                        (slime-eval-async
                            `(swank:simple-completions ,prefix ',package)
                          (lambda (result)
-                           (funcall callback (first result)))
+                           (funcall callback (car result)))
                          package)))))))
 
 
