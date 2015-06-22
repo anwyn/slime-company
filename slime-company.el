@@ -1,10 +1,10 @@
 ;;; slime-company.el --- slime completion backend for company mode
 ;;
-;; Copyright (C) 2009-2014  Ole Arndt
+;; Copyright (C) 2009-2015  Ole Arndt
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 0.8
+;; Version: 0.9
 ;; Package-Requires: ((slime "2.3.2") (company "0.7"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -113,14 +113,28 @@ In addition to displaying the arglist slime-company will also do one of:
                            (funcall callback (car result)))
                          package)))))))
 
+(defun slime-company-fontify-buffer ()
+  "Return a buffer in lisp-mode usable for fontifying lisp expressions."
+  (let ((buffer-name " *slime-company-fontify*"))
+    (or (get-buffer buffer-name)
+        (with-current-buffer (get-buffer-create buffer-name)
+          (unless (eq major-mode 'lisp-mode)
+            ;; Advice from slime: Just calling (lisp-mode) will turn slime-mode
+            ;; on in that buffer, which may interfere with the calling function
+            (setq major-mode 'lisp-mode)
+            (lisp-mode-variables t))
+          (current-buffer)))))
 
-(defun slime-company-fontify (arglist)
-  "Wrapper-function for slime's fontify-function, since this is not consistent acrosss versions."
-  ;; ensure we support versions of slime prior to and after the autodoc-changes
-  ;; https://github.com/slime/slime/commit/930f364853e518419978082c9a8455071e537b59
-  (if (fboundp 'slime-autodoc--fontify)
-      (slime-autodoc--fontify arglist)
-    (slime-fontify-string arglist)))
+(defun slime-company-fontify (string)
+  "Fontify STRING as `font-lock-mode' does in Lisp mode."
+  ;; copied functionality from slime, trimmed somewhat
+  (with-current-buffer (slime-company-fontify-buffer)
+    (erase-buffer)
+    (insert string)
+    (let ((font-lock-verbose nil))
+      (font-lock-fontify-buffer))
+    (goto-char (point-min))
+    (buffer-substring (point-min) (point-max))))
 
 (defun company-slime (command &optional arg &rest ignored)
   "Company mode backend for slime."
