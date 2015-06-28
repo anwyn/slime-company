@@ -4,7 +4,7 @@
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 0.9
+;; Version: 0.9.1
 ;; Package-Requires: ((slime "2.3.2") (company "0.7"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -86,12 +86,19 @@ In addition to displaying the arglist slime-company will also do one of:
   :group 'slime-company
   :type 'boolean)
 
+(defcustom slime-company-major-modes '(lisp-mode clojure-mode slime-repl-mode scheme-mode)
+  "List of major modes in which slime-company should be active.
+Slime-company actually calls `derived-mode-p' on this list, so it will
+be active in derived modes as well."
+  :group 'slime-company
+  :type '(repeat symbol))
+
 (defun slime-company-just-one-space (arg)
   (just-one-space))
 
 (defsubst slime-company-active-p ()
   "Test if the slime-company backend should be active in the current buffer."
-  (derived-mode-p 'lisp-mode 'clojure-mode 'slime-repl-mode))
+  (apply #'derived-mode-p slime-company-major-modes))
 
 (defun slime-company-maybe-enable ()
   (when (slime-company-active-p)
@@ -115,14 +122,16 @@ In addition to displaying the arglist slime-company will also do one of:
 
 (defun slime-company-fontify-buffer ()
   "Return a buffer in lisp-mode usable for fontifying lisp expressions."
-  (let ((buffer-name " *slime-company-fontify*"))
+  (let ((maj-mode major-mode)
+        (buffer-name " *slime-company-fontify*"))
     (or (get-buffer buffer-name)
         (with-current-buffer (get-buffer-create buffer-name)
-          (unless (eq major-mode 'lisp-mode)
+          (unless (eq major-mode maj-mode)
             ;; Advice from slime: Just calling (lisp-mode) will turn slime-mode
             ;; on in that buffer, which may interfere with the calling function
-            (setq major-mode 'lisp-mode)
-            (lisp-mode-variables t))
+            (setq major-mode maj-mode)
+            (when (derived-mode-p 'lisp-mode)
+              (lisp-mode-variables t)))
           (current-buffer)))))
 
 (defun slime-company-fontify (string)
