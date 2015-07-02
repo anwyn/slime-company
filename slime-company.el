@@ -148,29 +148,29 @@ be active in derived modes as well."
 (defun company-slime (command &optional arg &rest ignored)
   "Company mode backend for slime."
   (case command
-    ('init
+    (init
      (slime-company-active-p))
-    ('prefix
+    (prefix
      (when (and (slime-company-active-p)
                 (slime-connected-p)
                 (or slime-company-complete-in-comments-and-strings
                     (null (company-in-string-or-comment))))
        (company-grab-symbol)))
-    ('candidates
+    (candidates
      (when (slime-connected-p)
        (slime-company-fetch-candidates-async (substring-no-properties arg))))
-    ('meta
+    (meta
      (let ((arglist (slime-eval `(swank:operator-arglist ,arg ,(slime-current-package)))))
        (if arglist
            (slime-company-fontify arglist)
          :not-available)))
-    ('doc-buffer
+    (doc-buffer
      (let ((doc (slime-eval `(swank:describe-symbol ,arg))))
        (with-current-buffer (company-doc-buffer)
          (insert doc)
          (goto-char (point-min))
          (current-buffer))))
-    ('location
+    (location
      (let ((source-buffer (current-buffer)))
        (save-window-excursion
          (slime-edit-definition arg)
@@ -180,11 +180,11 @@ be active in derived modes as well."
            (when (buffer-live-p buffer)
              (cons buffer (with-current-buffer buffer
                             (point))))))))
-    ('post-completion
+    (post-completion
      (slime-echo-arglist)
      (when slime-company-after-completion
        (funcall slime-company-after-completion arg)))
-    ('sorted nil)))
+    (sorted nil)))
 
 (provide 'slime-company)
 
