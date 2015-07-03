@@ -4,8 +4,8 @@
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 0.9.1
-;; Package-Requires: ((slime "2.3.2") (company "0.7"))
+;; Version: 1.0
+;; Package-Requires: ((slime "2.13") (company "0.9.0"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -25,6 +25,9 @@
 ;; This is a backend implementation for the completion package
 ;; company-mode by Nikolaj Schumacher. More info about this package
 ;; is available at http://company-mode.github.io/
+;;
+;; As of version 1.0 this completion backend supports the normal and
+;; the fuzzy completion modes of SLIME.
 ;;
 ;;; Installation:
 ;;
@@ -61,6 +64,9 @@
      (remove-hook h 'slime-company-maybe-enable))
    (slime-company-disable)))
 
+;;; ----------------------------------------------------------------------------
+;;; * Customization
+
 (defgroup slime-company nil
   "Interaction between slime and the company completion mode."
   :group 'company
@@ -71,8 +77,9 @@
 In addition to displaying the arglist slime-company will also do one of:
 
 - `nil':  nothing,
-- insert a space. Works best if you also call `delete-horizontal-space'
-  before closing parentheses to remove excess whitespace.
+- insert a space. Useful if space does not select the completion candidate.
+  Works best if you also call `delete-horizontal-space' before closing
+  parentheses to remove excess whitespace.
 - call an arbitrary function with the completion string as the first parameter.
 "
   :group 'slime-company
@@ -81,20 +88,34 @@ In addition to displaying the arglist slime-company will also do one of:
           (const :tag "Insert space" slime-company-just-one-space)
           (function :tag "Custom function" nil)))
 
-(defcustom slime-company-transform-arglist #'downcase
+(defcustom slime-company-transform-arglist 'downcase
   "Before echoing the arglist it is passed to this function for transformation."
   :group 'slime-company
   :type '(choice
-          (const :tag "Do nothing" #'identity)
-          (const :tag "Downcase" #'downcase)
+          (const :tag "Downcase" downcase)
+          (const :tag "Do nothing" identity)
           (function :tag "Custom function" nil)))
+
+(defcustom slime-company-completion 'simple
+  "Which Slime completion to use: `simple' or `fuzzy'.
+
+`simple' just displays the completion candidate,
+`fuzzy' also displays the classification flags as an annotation,
+alignment of annotations via `company-tooltip-align-annotations'
+is recommended.
+"
+  :group 'slime-company
+  :type '(choice
+          (const simple)
+          (const fuzzy)))
 
 (defcustom slime-company-complete-in-comments-and-strings nil
   "Should slime-company also complete in comments and strings."
   :group 'slime-company
   :type 'boolean)
 
-(defcustom slime-company-major-modes '(lisp-mode clojure-mode slime-repl-mode scheme-mode)
+(defcustom slime-company-major-modes
+  '(lisp-mode clojure-mode slime-repl-mode scheme-mode)
   "List of major modes in which slime-company should be active.
 Slime-company actually calls `derived-mode-p' on this list, so it will
 be active in derived modes as well."
@@ -108,17 +129,29 @@ be active in derived modes as well."
   "Test if the slime-company backend should be active in the current buffer."
   (apply #'derived-mode-p slime-company-major-modes))
 
+;;; ----------------------------------------------------------------------------
+;;; * Activation
+
 (defun slime-company-maybe-enable ()
   (when (slime-company-active-p)
     (company-mode 1)
-    (add-to-list 'company-backends 'company-slime)))
+    (add-to-list 'company-backends 'company-slime)
+    (unless (slime-find-contrib 'slime-fuzzy)
+      (setq slime-company-completion 'simple))))
 
 (defun slime-company-disable ()
   (setq company-backends (remove 'company-slime company-backends)))
 
-;;; Internals
+;;; ----------------------------------------------------------------------------
+;;; * Internals
 
 (defun slime-company--fetch-candidates-async (prefix)
+  (when (slime-connected-p)
+    (ecase slime-company-completion
+      (simple (slime-company--fetch-candidates-simple prefix))
+      (fuzzy (slime-company--fetch-candidates-fuzzy prefix)))))
+
+(defun slime-company--fetch-candidates-simple (prefix)
   (let ((slime-current-thread t))
     (lexical-let ((package (slime-current-package))
                   (prefix prefix))
@@ -129,6 +162,25 @@ be active in derived modes as well."
                          (lambda (result)
                            (funcall callback (car result)))
                          package)))))))
+
+(defun slime-company--fetch-candidates-fuzzy (prefix)
+  (let ((slime-current-thread t))
+    (lexical-let ((package (slime-current-package))
+                  (prefix prefix))
+      (cons :async
+            (lambda (callback)
+              (lexical-let ((callback callback))
+                (slime-eval-async
+                    `(swank:fuzzy-completions ,prefix ',package)
+                  (lambda (result)
+                    (funcall callback
+                             (mapcar
+                              (lambda (completion)
+                                (cl-destructuring-bind (sym score chunks flags)
+                                    completion
+                                  (propertize sym 'score score 'flags flags)))
+                              (car result))))
+                  package)))))))
 
 (defun slime-company--fontify-buffer ()
   "Return a buffer in lisp-mode usable for fontifying lisp expressions."
@@ -156,10 +208,45 @@ be active in derived modes as well."
 (defun slime-company--format (doc)
   (let ((doc (slime-company--fontify doc)))
     (cond ((eq eldoc-echo-area-use-multiline-p t) doc)
-	  (t (slime-oneliner (replace-regexp-in-string "[ \n\t]+" " "  doc))))))
+	  (t (slime-oneliner (replace-regexp-in-string "[ \n\t]+" " " doc))))))
 
+(defun slime-company--arglist (arg)
+  (let ((arglist (slime-eval
+                  `(swank:operator-arglist ,arg ,(slime-current-package)))))
+    (when arglist
+      (slime-company--format arglist))))
 
-;;; Company backend function
+(defun slime-company--echo-arglist (arg)
+  (slime-eval-async `(swank:operator-arglist ,arg ,(slime-current-package))
+    (lambda (arglist)
+      (when arglist
+        (slime-message "%s" (slime-company--format arglist))))))
+
+(defun slime-company--doc-buffer (candidate)
+  (let ((doc (slime-eval `(swank:describe-symbol ,candidate))))
+    (with-current-buffer (company-doc-buffer)
+      (insert doc)
+      (goto-char (point-min))
+      (current-buffer))))
+
+(defun slime-company--location (candidate)
+  (let ((source-buffer (current-buffer)))
+    (save-window-excursion
+      (slime-edit-definition candidate)
+      (let ((buffer (if (eq source-buffer (current-buffer))
+                        slime-xref-last-buffer
+                      (current-buffer))))
+        (when (buffer-live-p buffer)
+          (cons buffer (with-current-buffer buffer
+                         (point))))))))
+
+(defun slime-company--post-completion (candidate)
+  (slime-company--echo-arglist candidate)
+  (when slime-company-after-completion
+    (funcall slime-company-after-completion candidate)))
+
+;;; ----------------------------------------------------------------------------
+;;; * Company backend function
 
 (defun company-slime (command &optional arg &rest ignored)
   "Company mode backend for slime."
@@ -173,33 +260,19 @@ be active in derived modes as well."
                     (null (company-in-string-or-comment))))
        (company-grab-symbol)))
     (candidates
-     (when (slime-connected-p)
-       (slime-company--fetch-candidates-async (substring-no-properties arg))))
+     (slime-company--fetch-candidates-async (substring-no-properties arg)))
     (meta
-     (let ((arglist (slime-eval `(swank:operator-arglist ,arg ,(slime-current-package)))))
-       (when arglist
-         (slime-company--format arglist))))
+     (slime-company--arglist (substring-no-properties arg)))
+    (annotation
+     (concat " " (get-text-property 0 'flags arg)))
     (doc-buffer
-     (let ((doc (slime-eval `(swank:describe-symbol ,arg))))
-       (with-current-buffer (company-doc-buffer)
-         (insert doc)
-         (goto-char (point-min))
-         (current-buffer))))
+     (slime-company--doc-buffer (substring-no-properties arg)))
     (location
-     (let ((source-buffer (current-buffer)))
-       (save-window-excursion
-         (slime-edit-definition arg)
-         (let ((buffer (if (eq source-buffer (current-buffer))
-                           slime-xref-last-buffer
-                         (current-buffer))))
-           (when (buffer-live-p buffer)
-             (cons buffer (with-current-buffer buffer
-                            (point))))))))
+     (slime-company--location (substring-no-properties arg)))
     (post-completion
-     (slime-echo-arglist)
-     (when slime-company-after-completion
-       (funcall slime-company-after-completion arg)))
-    (sorted nil)))
+     (slime-company--post-completion (substring-no-properties arg)))
+    (sorted
+     (eq slime-company-completion 'fuzzy))))
 
 (provide 'slime-company)
 
