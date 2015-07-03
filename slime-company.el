@@ -43,15 +43,15 @@
 ;;
 ;;; Code:
 
-(eval-when-compile (require 'cl))
 (require 'slime)
 (require 'company)
+(require 'cl-lib)
+(require 'eldoc)
 
 (define-slime-contrib slime-company
   "Interaction between slime and the company completion mode."
   (:license "GPL")
   (:authors "Ole Arndt <anwyn@sugarshark.com>")
-  (:slime-dependencies slime-autodoc)
   (:swank-dependencies swank-arglists)
   (:on-load
    (dolist (h '(slime-mode-hook slime-repl-mode-hook sldb-mode-hook))
@@ -79,7 +79,15 @@ In addition to displaying the arglist slime-company will also do one of:
   :type '(choice
           (const :tag "Do nothing" nil)
           (const :tag "Insert space" slime-company-just-one-space)
-          (function :tag "Call custom function" nil)))
+          (function :tag "Custom function" nil)))
+
+(defcustom slime-company-transform-arglist #'downcase
+  "Before echoing the arglist it is passed to this function for transformation."
+  :group 'slime-company
+  :type '(choice
+          (const :tag "Do nothing" #'identity)
+          (const :tag "Downcase" #'downcase)
+          (function :tag "Custom function" nil)))
 
 (defcustom slime-company-complete-in-comments-and-strings nil
   "Should slime-company also complete in comments and strings."
@@ -108,7 +116,9 @@ be active in derived modes as well."
 (defun slime-company-disable ()
   (setq company-backends (remove 'company-slime company-backends)))
 
-(defun slime-company-fetch-candidates-async (prefix)
+;;; Internals
+
+(defun slime-company--fetch-candidates-async (prefix)
   (let ((slime-current-thread t))
     (lexical-let ((package (slime-current-package))
                   (prefix prefix))
@@ -120,34 +130,40 @@ be active in derived modes as well."
                            (funcall callback (car result)))
                          package)))))))
 
-(defun slime-company-fontify-buffer ()
+(defun slime-company--fontify-buffer ()
   "Return a buffer in lisp-mode usable for fontifying lisp expressions."
-  (let ((maj-mode major-mode)
-        (buffer-name " *slime-company-fontify*"))
+  (let ((buffer-name " *slime-company-fontify*"))
     (or (get-buffer buffer-name)
         (with-current-buffer (get-buffer-create buffer-name)
-          (unless (eq major-mode maj-mode)
+          (unless (derived-mode-p 'lisp-mode)
             ;; Advice from slime: Just calling (lisp-mode) will turn slime-mode
             ;; on in that buffer, which may interfere with the calling function
-            (setq major-mode maj-mode)
-            (when (derived-mode-p 'lisp-mode)
-              (lisp-mode-variables t)))
+            (setq major-mode 'lisp-mode)
+            (lisp-mode-variables t))
           (current-buffer)))))
 
-(defun slime-company-fontify (string)
+(defun slime-company--fontify (string)
   "Fontify STRING as `font-lock-mode' does in Lisp mode."
   ;; copied functionality from slime, trimmed somewhat
-  (with-current-buffer (slime-company-fontify-buffer)
+  (with-current-buffer (slime-company--fontify-buffer)
     (erase-buffer)
-    (insert string)
+    (insert (funcall slime-company-transform-arglist string))
     (let ((font-lock-verbose nil))
       (font-lock-fontify-buffer))
     (goto-char (point-min))
     (buffer-substring (point-min) (point-max))))
 
+(defun slime-company--format (doc)
+  (let ((doc (slime-company--fontify doc)))
+    (cond ((eq eldoc-echo-area-use-multiline-p t) doc)
+	  (t (slime-oneliner (replace-regexp-in-string "[ \n\t]+" " "  doc))))))
+
+
+;;; Company backend function
+
 (defun company-slime (command &optional arg &rest ignored)
   "Company mode backend for slime."
-  (case command
+  (cl-case command
     (init
      (slime-company-active-p))
     (prefix
@@ -158,12 +174,11 @@ be active in derived modes as well."
        (company-grab-symbol)))
     (candidates
      (when (slime-connected-p)
-       (slime-company-fetch-candidates-async (substring-no-properties arg))))
+       (slime-company--fetch-candidates-async (substring-no-properties arg))))
     (meta
      (let ((arglist (slime-eval `(swank:operator-arglist ,arg ,(slime-current-package)))))
-       (if arglist
-           (slime-company-fontify arglist)
-         :not-available)))
+       (when arglist
+         (slime-company--format arglist))))
     (doc-buffer
      (let ((doc (slime-eval `(swank:describe-symbol ,arg))))
        (with-current-buffer (company-doc-buffer)
