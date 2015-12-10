@@ -51,6 +51,9 @@
 (require 'cl-lib)
 (require 'eldoc)
 
+(eval-when-compile
+  (require 'cl))
+
 (define-slime-contrib slime-company
   "Interaction between slime and the company completion mode."
   (:license "GPL")
