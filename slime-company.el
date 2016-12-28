@@ -1,4 +1,4 @@
-;;; slime-company.el --- slime completion backend for company mode
+;;; slime-company.el --- slime completion backend for company mode -*-lexical-binding:t-*-
 ;;
 ;; Copyright (C) 2009-2015  Ole Arndt
 ;;
