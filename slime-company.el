@@ -204,7 +204,7 @@ be active in derived modes as well."
     (erase-buffer)
     (insert (funcall slime-company-transform-arglist string))
     (let ((font-lock-verbose nil))
-      (font-lock-fontify-buffer))
+      (font-lock-fontify-region (point-min) (point-max)))
     (goto-char (point-min))
     (buffer-substring (point-min) (point-max))))
 
