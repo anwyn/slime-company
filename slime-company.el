@@ -125,7 +125,7 @@ be active in derived modes as well."
   :group 'slime-company
   :type '(repeat symbol))
 
-(defun slime-company-just-one-space (arg)
+(defun slime-company-just-one-space (_)
   (just-one-space))
 
 (defsubst slime-company-active-p ()
@@ -179,7 +179,7 @@ be active in derived modes as well."
                     (funcall callback
                              (mapcar
                               (lambda (completion)
-                                (cl-destructuring-bind (sym score chunks flags)
+                                (cl-destructuring-bind (sym score _ flags)
                                     completion
                                   (propertize sym 'score score 'flags flags)))
                               (car result))))
