@@ -214,10 +214,9 @@ be active in derived modes as well."
 	  (t (slime-oneliner (replace-regexp-in-string "[ \n\t]+" " " doc))))))
 
 (defun slime-company--arglist (arg)
-  (let ((arglist (slime-eval
+  (when-let ((arglist (slime-eval
                   `(swank:operator-arglist ,arg ,(slime-current-package)))))
-    (when arglist
-      (slime-company--format arglist))))
+    (slime-company--format arglist)))
 
 (defun slime-company--echo-arglist (arg)
   (slime-eval-async `(swank:operator-arglist ,arg ,(slime-current-package))
