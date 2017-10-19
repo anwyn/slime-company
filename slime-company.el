@@ -208,6 +208,15 @@ be active in derived modes as well."
     (goto-char (point-min))
     (buffer-substring (point-min) (point-max))))
 
+
+(defvar slime-company-doc-highlights
+      `(("^  [^\\[ ]\\([^:]*\\):" . font-lock-doc-face)))
+
+(define-derived-mode slime-company-doc-mode fundamental-mode "slime-company-doc"
+  "Documentation mode for slime company."
+  (setq font-lock-defaults '(slime-company-doc-highlights)))
+
+
 (defun slime-company--format (doc)
   (let ((doc (slime-company--fontify doc)))
     (cond ((eq eldoc-echo-area-use-multiline-p t) doc)
@@ -228,6 +237,7 @@ be active in derived modes as well."
 (defun slime-company--doc-buffer (candidate)
   (let ((doc (slime-eval `(swank:describe-symbol ,candidate))))
     (with-current-buffer (company-doc-buffer)
+      (slime-company-doc-mode)
       (insert doc)
       (goto-char (point-min))
       (current-buffer))))
