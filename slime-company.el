@@ -50,6 +50,7 @@
 (require 'company)
 (require 'cl-lib)
 (require 'eldoc)
+(require 'subr-x)
 
 (eval-when-compile
   (require 'cl))
@@ -226,7 +227,13 @@ be active in derived modes as well."
         (slime-message "%s" (slime-company--format arglist))))))
 
 (defun slime-company--doc-buffer (candidate)
-  (let ((doc (slime-eval `(swank:describe-symbol ,candidate))))
+  (let* ((pkg-name (when (string-suffix-p ":" candidate)
+                     (format "#:%s" (string-remove-suffix ":" candidate))))
+         (doc (if pkg-name
+                  (slime-eval `(swank::describe-to-string
+                                (cl:find-package
+                                 (cl:symbol-name (cl:read-from-string ,pkg-name)))))
+                (slime-eval `(swank:describe-symbol ,candidate)))))
     (with-current-buffer (company-doc-buffer)
       (insert doc)
       (goto-char (point-min))
