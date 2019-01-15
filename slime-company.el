@@ -126,8 +126,9 @@ be active in derived modes as well."
   :group 'slime-company
   :type '(repeat symbol))
 
-(defun slime-company-just-one-space (_)
-  (just-one-space))
+(defun slime-company-just-one-space (completion-string)
+  (unless (string-suffix-p ":" completion-string)
+    (just-one-space)))
 
 (defsubst slime-company-active-p ()
   "Test if the slime-company backend should be active in the current buffer."
@@ -252,7 +253,7 @@ be active in derived modes as well."
 
 (defun slime-company--post-completion (candidate)
   (slime-company--echo-arglist candidate)
-  (when slime-company-after-completion
+  (when (functionp slime-company-after-completion)
     (funcall slime-company-after-completion candidate)))
 
 ;;; ----------------------------------------------------------------------------
