@@ -4,7 +4,7 @@
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 1.1
+;; Version: 1.2
 ;; Package-Requires: ((emacs "24.4") (slime "2.13") (company "0.9.0"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -256,6 +256,18 @@ be active in derived modes as well."
   (when (functionp slime-company-after-completion)
     (funcall slime-company-after-completion candidate)))
 
+(defun slime-company--in-string-or-comment ()
+  "Return non-nil if point is within a string or comment.
+In the REPL we disregard anything not in the current input area."
+  (save-restriction
+    (when (derived-mode-p 'slime-repl-mode)
+      (narrow-to-region slime-repl-input-start-mark (point)))
+    (let* ((sp (syntax-ppss))
+           (beg (nth 8 sp)))
+      (when (or (eq (char-after beg) ?\")
+                (nth 4 sp))
+        beg))))
+
 ;;; ----------------------------------------------------------------------------
 ;;; * Company backend function
 
@@ -268,7 +280,7 @@ be active in derived modes as well."
      (when (and (slime-company-active-p)
                 (slime-connected-p)
                 (or slime-company-complete-in-comments-and-strings
-                    (null (company-in-string-or-comment))))
+                    (null (slime-company--in-string-or-comment))))
        (company-grab-symbol)))
     (candidates
      (slime-company--fetch-candidates-async (substring-no-properties arg)))
