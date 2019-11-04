@@ -31,3 +31,8 @@ navigation keys to the completion menu:
 (define-key company-active-map (kbd "\C-d") 'company-show-doc-buffer)
 (define-key company-active-map (kbd "M-.") 'company-show-location)
 ```
+To obtain package name completion enable `fuzzy` completion.
+
+```el
+(setq slime-company-completion 'fuzzy)
+```
