@@ -263,6 +263,9 @@ be active in derived modes as well."
        (goto-char (point-min))
        (current-buffer))))
 
+(defun slime-company--quickhelp-string (candidate)
+  (slime-eval `(swank:documentation-symbol ,candidate)))
+
 (defun slime-company--location (candidate)
   (let ((source-buffer (current-buffer)))
     (save-window-excursion
@@ -313,6 +316,8 @@ In the REPL we disregard anything not in the current input area."
      (concat " " (get-text-property 0 'flags arg)))
     (doc-buffer
      (slime-company--doc-buffer (substring-no-properties arg)))
+    (quickhelp-string
+     (slime-company--quickhelp-string (substring-no-properties arg)))
     (location
      (slime-company--location (substring-no-properties arg)))
     (post-completion
