@@ -4,7 +4,7 @@
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 1.2
+;; Version: 1.3
 ;; Package-Requires: ((emacs "24.4") (slime "2.13") (company "0.9.0"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -85,6 +85,8 @@ In addition to displaying the arglist slime-company will also do one of:
   Works best if you also call `delete-horizontal-space' before closing
   parentheses to remove excess whitespace.
 - call an arbitrary function with the completion string as the first parameter.
+  Do not call company-complete inside this function, company doesn't like to
+  be invoked recursively.
 "
   :group 'slime-company
   :type '(choice
@@ -101,12 +103,12 @@ In addition to displaying the arglist slime-company will also do one of:
           (function :tag "Custom function" nil)))
 
 (defcustom slime-company-completion 'simple
-  "Which Slime completion to use: `simple' or `fuzzy'.
+  "Which Slime completion method to use: `simple' or `fuzzy'.
 
 `simple' just displays the completion candidate,
 `fuzzy' also displays the classification flags as an annotation,
 alignment of annotations via `company-tooltip-align-annotations'
-is recommended.
+is recommended. This method also can complete package names.
 "
   :group 'slime-company
   :type '(choice
