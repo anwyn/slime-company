@@ -250,23 +250,37 @@ be active in derived modes as well."
       (when arglist
         (slime-message "%s" (slime-company--format arglist))))))
 
+(defun slime-company--package-name (pkg)
+  "Convert a string into into a uninterned symbol name, if it looks
+like a package name, i.e. if it has a trailing colon.
+Returns NIL if the string does not look like a package name."
+  (when (string-suffix-p ":" pkg)
+    (format "#:%s" (string-remove-suffix ":" (string-remove-suffix ":" pkg)))))
+
+(defun slime-company--quickhelp-string (candidate)
+  "Retrieve the Lisp symbol documentation for CANDIDATE."
+  (let ((pkg-name (slime-company--package-name candidate)))
+    (if pkg-name
+        (slime-eval `(swank::describe-to-string
+                      (cl:find-package
+                       (cl:symbol-name (cl:read-from-string ,pkg-name)))))
+      (slime-eval `(swank:documentation-symbol ,candidate)))))
+
 (defun slime-company--doc-buffer (candidate)
-  (let* ((pkg-name (when (string-suffix-p ":" candidate)
-                     (format "#:%s" (string-remove-suffix ":" candidate))))
+  "Show the Lisp symbol documentation for CANDIDATE in a buffer.
+Shows more type info than `slime-company--quickhelp-string'."
+  (let* ((pkg-name (slime-company--package-name candidate))
          (doc (if pkg-name
                   (slime-eval `(swank::describe-to-string
                                 (cl:find-package
                                  (cl:symbol-name (cl:read-from-string ,pkg-name)))))
                 (slime-eval `(swank:describe-symbol ,candidate)))))
     (with-current-buffer (company-doc-buffer)
-       (slime-company-doc-mode)
-       (setq buffer-read-only nil)
-       (insert doc)
-       (goto-char (point-min))
-       (current-buffer))))
-
-(defun slime-company--quickhelp-string (candidate)
-  (slime-eval `(swank:documentation-symbol ,candidate)))
+      (slime-company-doc-mode)
+      (setq buffer-read-only nil)
+      (insert doc)
+      (goto-char (point-min))
+      (current-buffer))))
 
 (defun slime-company--location (candidate)
   (let ((source-buffer (current-buffer)))
