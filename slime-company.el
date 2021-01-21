@@ -4,7 +4,7 @@
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 1.3
+;; Version: 1.4
 ;; Package-Requires: ((emacs "24.4") (slime "2.13") (company "0.9.0"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -51,9 +51,6 @@
 (require 'cl-lib)
 (require 'eldoc)
 (require 'subr-x)
-
-(eval-when-compile
-  (require 'cl))
 
 (define-slime-contrib slime-company
   "Interaction between slime and the company completion mode."
@@ -180,35 +177,32 @@ be active in derived modes as well."
       (fuzzy (slime-company--fetch-candidates-fuzzy prefix)))))
 
 (defun slime-company--fetch-candidates-simple (prefix)
-  (let ((slime-current-thread t))
-    (lexical-let ((package (slime-current-package))
-                  (prefix prefix))
-      (cons :async (lambda (callback)
-                     (lexical-let ((callback callback))
-                       (slime-eval-async
-                           `(swank:simple-completions ,prefix ',package)
-                         (lambda (result)
-                           (funcall callback (car result)))
-                         package)))))))
+  (let ((slime-current-thread t)
+        (package (slime-current-package)))
+    (cons :async
+          (lambda (callback)
+            (slime-eval-async
+                `(swank:simple-completions ,prefix ',package)
+              (lambda (result)
+                (funcall callback (car result)))
+              package)))))
 
 (defun slime-company--fetch-candidates-fuzzy (prefix)
-  (let ((slime-current-thread t))
-    (lexical-let ((package (slime-current-package))
-                  (prefix prefix))
-      (cons :async
-            (lambda (callback)
-              (lexical-let ((callback callback))
-                (slime-eval-async
-                    `(swank:fuzzy-completions ,prefix ',package)
-                  (lambda (result)
-                    (funcall callback
-                             (mapcar
-                              (lambda (completion)
-                                (cl-destructuring-bind (sym score _ flags)
-                                    completion
-                                  (propertize sym 'score score 'flags flags)))
-                              (car result))))
-                  package)))))))
+  (let ((slime-current-thread t)
+        (package (slime-current-package)))
+    (cons :async
+          (lambda (callback)
+            (slime-eval-async
+                `(swank:fuzzy-completions ,prefix ',package)
+              (lambda (result)
+                (funcall callback
+                         (mapcar
+                          (lambda (completion)
+                            (cl-destructuring-bind (sym score _ flags)
+                                completion
+                              (propertize sym 'score score 'flags flags)))
+                          (car result))))
+              package)))))
 
 (defun slime-company--fontify-buffer ()
   "Return a buffer in lisp-mode usable for fontifying lisp expressions."
@@ -257,24 +251,29 @@ Returns NIL if the string does not look like a package name."
   (when (string-suffix-p ":" pkg)
     (format "#:%s" (string-remove-suffix ":" (string-remove-suffix ":" pkg)))))
 
+(defun slime-company--build-describe-request (candidate &optional verbose)
+  (let ((pkg-name (slime-company--package-name candidate)))
+    (cond (pkg-name
+           `(swank::describe-to-string
+             (cl:find-package
+              (cl:symbol-name (cl:read-from-string ,pkg-name)))))
+          (verbose
+           `(swank:describe-symbol ,candidate))
+          (t
+           `(swank:documentation-symbol ,candidate)))))
+
 (defun slime-company--quickhelp-string (candidate)
   "Retrieve the Lisp symbol documentation for CANDIDATE."
-  (let ((pkg-name (slime-company--package-name candidate)))
-    (if pkg-name
-        (slime-eval `(swank::describe-to-string
-                      (cl:find-package
-                       (cl:symbol-name (cl:read-from-string ,pkg-name)))))
-      (slime-eval `(swank:documentation-symbol ,candidate)))))
+  (let ((slime-current-thread t))
+    (slime-eval (slime-company--build-describe-request candidate)
+                (slime-current-package))))
 
 (defun slime-company--doc-buffer (candidate)
   "Show the Lisp symbol documentation for CANDIDATE in a buffer.
 Shows more type info than `slime-company--quickhelp-string'."
-  (let* ((pkg-name (slime-company--package-name candidate))
-         (doc (if pkg-name
-                  (slime-eval `(swank::describe-to-string
-                                (cl:find-package
-                                 (cl:symbol-name (cl:read-from-string ,pkg-name)))))
-                (slime-eval `(swank:describe-symbol ,candidate)))))
+  (let* ((slime-current-thread t)
+         (doc (slime-eval (slime-company--build-describe-request candidate t)
+                          (slime-current-package))))
     (with-current-buffer (company-doc-buffer)
       (slime-company-doc-mode)
       (setq buffer-read-only nil)
