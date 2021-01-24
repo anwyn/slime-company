@@ -4,7 +4,7 @@
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 1.5
+;; Version: 1.6
 ;; Package-Requires: ((emacs "24.4") (slime "2.13") (company "0.9.0"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -187,7 +187,7 @@ be active in derived modes as well."
 
 (defun slime-company--fetch-candidates-async (prefix)
   (when (slime-connected-p)
-    (ecase slime-company-completion
+    (cl-ecase slime-company-completion
       (simple (slime-company--fetch-candidates-simple prefix))
       (fuzzy (slime-company--fetch-candidates-fuzzy prefix)))))
 
