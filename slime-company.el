@@ -1,10 +1,10 @@
 ;;; slime-company.el --- slime completion backend for company mode -*-lexical-binding:t-*-
 ;;
-;; Copyright (C) 2009-2015  Ole Arndt
+;; Copyright (C) 2009-2021  Ole Arndt
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 1.4
+;; Version: 1.5
 ;; Package-Requires: ((emacs "24.4") (slime "2.13") (company "0.9.0"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -99,6 +99,21 @@ In addition to displaying the arglist slime-company will also do one of:
           (const :tag "Do nothing" identity)
           (function :tag "Custom function" nil)))
 
+(defcustom slime-company-display-arglist nil
+  "Whether to display the arglist of a function in the company popup."
+  :group 'slime-company
+  :type '(choice
+          (const :tag "Hide arglist" nil)
+          (const :tag "Show arglist" t)))
+
+(defcustom slime-company-display-flags t
+  "Whether to display the symbol's flags in the company popup.
+Symbol flags are only returned with the `fuzzy' completion type."
+  :group 'slime-company
+  :type '(choice
+          (const :tag "Hide flags" nil)
+          (const :tag "Show flags" t)))
+
 (defcustom slime-company-completion 'simple
   "Which Slime completion method to use: `simple' or `fuzzy'.
 
@@ -177,7 +192,7 @@ be active in derived modes as well."
       (fuzzy (slime-company--fetch-candidates-fuzzy prefix)))))
 
 (defun slime-company--fetch-candidates-simple (prefix)
-  (let ((slime-current-thread t)
+  (let ((slime-current-thread :repl-thread)
         (package (slime-current-package)))
     (cons :async
           (lambda (callback)
@@ -188,7 +203,7 @@ be active in derived modes as well."
               package)))))
 
 (defun slime-company--fetch-candidates-fuzzy (prefix)
-  (let ((slime-current-thread t)
+  (let ((slime-current-thread :repl-thread)
         (package (slime-current-package)))
     (cons :async
           (lambda (callback)
@@ -204,7 +219,7 @@ be active in derived modes as well."
                           (car result))))
               package)))))
 
-(defun slime-company--fontify-buffer ()
+(defun slime-company--fontify-lisp-buffer ()
   "Return a buffer in lisp-mode usable for fontifying lisp expressions."
   (let ((buffer-name " *slime-company-fontify*"))
     (or (get-buffer buffer-name)
@@ -216,10 +231,10 @@ be active in derived modes as well."
             (lisp-mode-variables t))
           (current-buffer)))))
 
-(defun slime-company--fontify (string)
+(defun slime-company--fontify-lisp (string)
   "Fontify STRING as `font-lock-mode' does in Lisp mode."
   ;; copied functionality from slime, trimmed somewhat
-  (with-current-buffer (slime-company--fontify-buffer)
+  (with-current-buffer (slime-company--fontify-lisp-buffer)
     (erase-buffer)
     (insert (funcall slime-company-transform-arglist string))
     (let ((font-lock-verbose nil))
@@ -228,7 +243,7 @@ be active in derived modes as well."
     (buffer-substring (point-min) (point-max))))
 
 (defun slime-company--format (doc)
-  (let ((doc (slime-company--fontify doc)))
+  (let ((doc (slime-company--fontify-lisp doc)))
     (cond ((eq eldoc-echo-area-use-multiline-p t) doc)
 	  (t (slime-oneliner (replace-regexp-in-string "[ \n\t]+" " " doc))))))
 
@@ -237,6 +252,14 @@ be active in derived modes as well."
                   `(swank:operator-arglist ,arg ,(slime-current-package)))))
     (when arglist
       (slime-company--format arglist))))
+
+(defun slime-company--arglist-only (arg)
+  (let ((arglist (slime-eval
+                  `(swank:operator-arglist ,arg ,(slime-current-package)))))
+    (when arglist
+      (replace-regexp-in-string
+       (concat "(" (funcall slime-company-transform-arglist arg) " ")
+       " (" (funcall slime-company-transform-arglist arglist) t t))))
 
 (defun slime-company--echo-arglist (arg)
   (slime-eval-async `(swank:operator-arglist ,arg ,(slime-current-package))
@@ -262,24 +285,31 @@ Returns NIL if the string does not look like a package name."
           (t
            `(swank:documentation-symbol ,candidate)))))
 
-(defun slime-company--quickhelp-string (candidate)
-  "Retrieve the Lisp symbol documentation for CANDIDATE."
-  (let ((slime-current-thread t))
-    (slime-eval (slime-company--build-describe-request candidate)
-                (slime-current-package))))
+(defun slime-company--fontify-doc-buffer (&optional doc)
+  "Return a buffer in `slime-compary-doc-mode' usable for fontifying documentation."
+  (with-current-buffer (company-doc-buffer)
+      (slime-company-doc-mode)
+      (setq buffer-read-only nil)
+      (when doc
+        (insert doc))
+      (goto-char (point-min))
+      (current-buffer)))
 
 (defun slime-company--doc-buffer (candidate)
   "Show the Lisp symbol documentation for CANDIDATE in a buffer.
 Shows more type info than `slime-company--quickhelp-string'."
-  (let* ((slime-current-thread t)
-         (doc (slime-eval (slime-company--build-describe-request candidate t)
-                          (slime-current-package))))
-    (with-current-buffer (company-doc-buffer)
-      (slime-company-doc-mode)
-      (setq buffer-read-only nil)
-      (insert doc)
-      (goto-char (point-min))
-      (current-buffer))))
+  (let* ((slime-current-thread :repl-thread))
+    (slime-company--fontify-doc-buffer
+     (slime-eval (slime-company--build-describe-request candidate t)
+                 (slime-current-package)))))
+
+(defun slime-company--quickhelp-string (candidate)
+  "Retrieve the Lisp symbol documentation for CANDIDATE.
+This function does not fontify and displays the result of SWANK's
+`documentation-symbol' function, instead of the more verbose `describe-symbol'."
+  (let ((slime-current-thread :repl-thread))
+    (slime-eval (slime-company--build-describe-request candidate)
+                (slime-current-package))))
 
 (defun slime-company--location (candidate)
   (let ((source-buffer (current-buffer)))
@@ -312,33 +342,44 @@ In the REPL we disregard anything not in the current input area."
 ;;; ----------------------------------------------------------------------------
 ;;; * Company backend function
 
+(defvar *slime-company--meta-request* nil
+  "Workaround lock for company-quickhelp, which invokes 'quickhelp-string' or
+doc-buffer' while a 'meta' request is running, causing SLIME to cancel requests.")
+
 (defun company-slime (command &optional arg &rest ignored)
   "Company mode backend for slime."
-  (cl-case command
-    (init
-     (slime-company-active-p))
-    (prefix
-     (when (and (slime-company-active-p)
-                (slime-connected-p)
-                (or slime-company-complete-in-comments-and-strings
-                    (null (slime-company--in-string-or-comment))))
-       (company-grab-symbol)))
-    (candidates
-     (slime-company--fetch-candidates-async (substring-no-properties arg)))
-    (meta
-     (slime-company--arglist (substring-no-properties arg)))
-    (annotation
-     (concat " " (get-text-property 0 'flags arg)))
-    (doc-buffer
-     (slime-company--doc-buffer (substring-no-properties arg)))
-    (quickhelp-string
-     (slime-company--quickhelp-string (substring-no-properties arg)))
-    (location
-     (slime-company--location (substring-no-properties arg)))
-    (post-completion
-     (slime-company--post-completion (substring-no-properties arg)))
-    (sorted
-     (eq slime-company-completion 'fuzzy))))
+  (let ((candidate (and arg (substring-no-properties arg))))
+    (cl-case command
+      (init
+       (slime-company-active-p))
+      (prefix
+       (when (and (slime-company-active-p)
+                  (slime-connected-p)
+                  (or slime-company-complete-in-comments-and-strings
+                      (null (slime-company--in-string-or-comment))))
+         (company-grab-symbol)))
+      (candidates
+       (slime-company--fetch-candidates-async candidate))
+      (meta
+       (let ((*slime-company--meta-request* t))
+         (slime-company--arglist candidate)))
+      (annotation
+       (concat (when slime-company-display-arglist
+                 (slime-company--arglist-only candidate))
+               (when slime-company-display-flags
+                 (concat " " (get-text-property 0 'flags arg)))))
+      (doc-buffer
+       (unless *slime-company--meta-request*
+         (slime-company--doc-buffer candidate)))
+      (quickhelp-string
+       (unless *slime-company--meta-request*
+         (slime-company--quickhelp-string candidate)))
+      (location
+       (slime-company--location candidate))
+      (post-completion
+       (slime-company--post-completion candidate))
+      (sorted
+       (eq slime-company-completion 'fuzzy)))))
 
 (provide 'slime-company)
 
