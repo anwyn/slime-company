@@ -187,9 +187,11 @@ be active in derived modes as well."
 
 (defun slime-company--fetch-candidates-async (prefix)
   (when (slime-connected-p)
-    (cl-ecase slime-company-completion
-      (simple (slime-company--fetch-candidates-simple prefix))
-      (fuzzy (slime-company--fetch-candidates-fuzzy prefix)))))
+    (unless (and (string-empty-p prefix)
+                 (eq (char-before (point)) ?\)))
+      (cl-ecase slime-company-completion
+        (simple (slime-company--fetch-candidates-simple prefix))
+        (fuzzy (slime-company--fetch-candidates-fuzzy prefix))))))
 
 (defun slime-company--fetch-candidates-simple (prefix)
   (let ((slime-current-thread :repl-thread)
