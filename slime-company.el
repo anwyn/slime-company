@@ -4,7 +4,7 @@
 ;;
 ;; Author: Ole Arndt <anwyn@sugarshark.com>
 ;; Keywords: convenience, lisp, abbrev
-;; Version: 1.6
+;; Version: 1.7
 ;; Package-Requires: ((emacs "24.4") (slime "2.13") (company "0.9.0"))
 ;;
 ;; This file is free software; you can redistribute it and/or modify
@@ -348,7 +348,7 @@ doc-buffer' while a 'meta' request is running, causing SLIME to cancel requests.
 
 (defun company-slime (command &optional arg &rest ignored)
   "Company mode backend for slime."
-  (let ((candidate (and arg (substring-no-properties arg))))
+  (let ((candidate (and (stringp arg) (substring-no-properties arg))))
     (cl-case command
       (init
        (slime-company-active-p))
