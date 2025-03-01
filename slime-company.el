@@ -193,14 +193,45 @@ be active in derived modes as well."
 
 (defun slime-company--fetch-candidates-simple (prefix)
   (let ((slime-current-thread :repl-thread)
-        (package (slime-current-package)))
-    (cons :async
-          (lambda (callback)
-            (slime-eval-async
-                `(swank:simple-completions ,prefix ',package)
-              (lambda (result)
-                (funcall callback (car result)))
-              package)))))
+        (package (slime-current-package))
+        (prefix (if (stringp prefix) prefix ""))
+        (len (length prefix)))
+    (if (not (string-empty-p prefix))
+        (cons :async
+              (lambda (callback)
+                (slime-eval-async
+                    `(cl:let ((completions (swank:simple-completions ,prefix ,package))
+                              (packages (cl:mapcar
+                                         (cl:lambda (name)
+                                            (cl:concatenate 'cl:string name ":"))
+                                         (cl:remove-if-not
+                                          (cl:lambda (name)
+                                             (cl:let ((len ,len))
+                                                (cl:and (cl:> (cl:length name) len)
+                                                        (cl:string-equal name ,prefix :end1 len :end2 len))))
+                                          (cl:mapcar
+                                           (cl:lambda (p)
+                                              (cl:string-downcase (cl:package-name p)))
+                                           (cl:list-all-packages))))))
+                             (cl:list (cl:append packages (cl:first completions))
+                                      (cl:second completions)))
+                  (lambda (result)
+                    (funcall callback (car result)))
+                  package)))
+      (cons :async
+            (lambda (callback)
+              (slime-eval-async
+                  `(cl:list
+                    (cl:mapcar (cl:lambda (p)
+                                 (cl:concatenate
+                                  'cl:string
+                                  (cl:string-downcase (cl:package-name p))
+                                  ":"))
+                               (cl:list-all-packages))
+                    ,prefix)
+                (lambda (result)
+                  (funcall callback (car result)))
+                package))))))
 
 (defun slime-company--fetch-candidates-fuzzy (prefix)
   (let ((slime-current-thread :repl-thread)
@@ -359,7 +390,9 @@ doc-buffer' while a 'meta' request is running, causing SLIME to cancel requests.
                       (null (slime-company--in-string-or-comment))))
          (company-grab-symbol)))
       (candidates
-       (slime-company--fetch-candidates-async candidate))
+       (when (and candidate
+                  (not (eq (char-before (point)) ?\))))
+         (slime-company--fetch-candidates-async candidate)))
       (meta
        (let ((*slime-company--meta-request* t))
          (slime-company--arglist candidate)))
