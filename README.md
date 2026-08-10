@@ -1,3 +1,5 @@
+
+
 slime-company
 =============
 
@@ -19,15 +21,15 @@ To activate the contrib add it to the `slime-setup` call in your `.emacs`
 ```
 
 You may also want to `M-x customize-group slime-company` to select the
-completion method (use `fuzzy' if you like to complete package names),
+completion method (use `fuzzy` if you like to complete package names),
 the major modes where `slime-company` is automatically activated, what
-do do after a successful completion and how to display the argument
+to do after a successful completion and how to display the argument
 list of a function.
 
 These customization variables can also be set manually. An example with
-`use-package' looks like this:
+`use-package` looks like this:
 
-```
+```el
 (use-package slime-company
   :after (slime company)
   :config (setq slime-company-completion 'fuzzy
@@ -43,4 +45,3 @@ navigation keys to the completion menu:
 (define-key company-active-map (kbd "\C-d") 'company-show-doc-buffer)
 (define-key company-active-map (kbd "M-.") 'company-show-location)
 ```
-
